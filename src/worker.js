@@ -171,6 +171,8 @@ async function sendEmail(env, { to, subject, text }) {
    dashboard calls it today; a verified payment webhook (Kit, etc.)
    will call it with source = "purchase".
    ============================================================ */
+const paymentsOn = env => !!(env.PAYMENTS_ENABLED || env.SAMCART_WEBHOOK_SECRET);
+
 async function grantAccess(env, email, courseId, source = "admin") {
   const member = await upsertMember(env, email);
   await env.DB.prepare(
@@ -198,6 +200,122 @@ async function createLoginLink(env, req, memberId, next = "/account.html") {
   ).bind(await sha256(token), memberId, expires).run();
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/account.html";
   return `${siteUrl(env, req)}/auth/verify?token=${token}&next=${encodeURIComponent(safeNext)}`;
+}
+
+/* ============================================================
+   SAMCART  (payments, upsells, downsells, order bumps)
+
+   SamCart runs checkout and the whole upsell/downsell flow on its own
+   pages, then POSTs a notification here for each purchase:
+
+     POST /api/webhooks/samcart/<SAMCART_WEBHOOK_SECRET>
+
+   Why a secret in the address: it means only SamCart (which is given
+   the full address) can unlock courses. The secret is a Cloudflare
+   secret, never in this repo. Courses are matched by the SamCart
+   product IDs the owner enters in the dashboard, so the notification
+   can only unlock courses the owner has linked to a SamCart product.
+
+   SamCart's field names have varied between notification types, so
+   the reader below accepts the known shapes and every notification is
+   logged in payment_events to check against.
+   ============================================================ */
+
+function pick(obj, paths) {
+  for (const p of paths) {
+    const v = p.split(".").reduce((o, k) => (o && typeof o === "object" ? o[k] : undefined), obj);
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return "";
+}
+
+function readSamcart(b) {
+  const type = str(pick(b, ["type", "event", "event_type", "trigger", "notification_type"]), 80);
+  const email = str(pick(b, ["customer.email", "customer_email", "email", "order.customer.email", "buyer.email"]), 254).toLowerCase();
+  const name = str([pick(b, ["customer.first_name", "first_name"]), pick(b, ["customer.last_name", "last_name"])].filter(Boolean).join(" "), 80);
+  let items = [];
+  for (const key of ["products", "order.products", "items", "line_items"]) {
+    const v = pick(b, [key]);
+    if (Array.isArray(v)) items = items.concat(v);
+  }
+  const single = pick(b, ["product"]);
+  if (single && typeof single === "object") items.push(single);
+  const ids = new Set();
+  for (const it of items) {
+    const id = pick(it, ["id", "product_id", "product.id", "sku"]);
+    if (id !== "") ids.add(String(id).trim());
+  }
+  const loose = pick(b, ["product_id", "order.product_id"]);
+  if (loose !== "") ids.add(String(loose).trim());
+  const refund = /refund|cancel|chargeback|revoked|subscription.?(ended|canceled|cancelled)/i.test(type) ||
+    /^(refunded|cancel(l)?ed)$/i.test(str(pick(b, ["order.status", "status"]), 40));
+  return { type, email, name, ids: [...ids].slice(0, 50), refund };
+}
+
+async function coursesForSamcartIds(env, ids) {
+  if (!ids.length) return [];
+  const has = (field) => ids.some(id => String(field || "").split(",").map(s => s.trim()).filter(Boolean).includes(id));
+  const [courses, products] = await Promise.all([
+    env.DB.prepare("SELECT id, samcart_product_id FROM courses WHERE samcart_product_id <> ''").all(),
+    env.DB.prepare("SELECT course_ids, samcart_product_id FROM products WHERE samcart_product_id <> ''").all()
+  ]);
+  const out = new Set();
+  courses.results.filter(c => has(c.samcart_product_id)).forEach(c => out.add(c.id));
+  products.results.filter(p => has(p.samcart_product_id))
+    .forEach(p => JSON.parse(p.course_ids || "[]").forEach(id => out.add(Number(id))));
+  return [...out];
+}
+
+async function samcartWebhook(req, env, secret) {
+  if (!env.SAMCART_WEBHOOK_SECRET || !safeEqual(secret, env.SAMCART_WEBHOOK_SECRET)) fail(404, "Not found.");
+
+  const raw = (await req.text()).slice(0, 200000);
+  let b;
+  try { b = JSON.parse(raw); }
+  catch {
+    // Some notifications arrive form-encoded.
+    b = Object.fromEntries(new URLSearchParams(raw));
+    for (const k of Object.keys(b)) { try { b[k] = JSON.parse(b[k]); } catch { /* plain value */ } }
+  }
+  const ev = readSamcart(b || {});
+  let result;
+  const titles = async ids => {
+    const r = await env.DB.prepare(`SELECT title FROM courses WHERE id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all();
+    return r.results.map(x => x.title).join(", ");
+  };
+
+  if (!EMAIL_RE.test(ev.email)) {
+    result = "ignored: no customer email";
+  } else {
+    const courseIds = await coursesForSamcartIds(env, ev.ids);
+    if (!courseIds.length) {
+      result = `no match: product ${ev.ids.join(", ") || "(none)"} isn't linked to a course yet`;
+    } else if (ev.refund) {
+      const m = await env.DB.prepare("SELECT id FROM members WHERE email = ?").bind(ev.email).first();
+      if (m) {
+        await env.DB.batch(courseIds.map(cid => env.DB.prepare(
+          "DELETE FROM enrollments WHERE member_id = ? AND course_id = ? AND source = 'purchase'").bind(m.id, cid)));
+      }
+      result = `refund: removed ${await titles(courseIds)}`;
+    } else {
+      let member;
+      for (const cid of courseIds) member = await grantAccess(env, ev.email, cid, "purchase");
+      if (ev.name) await env.DB.prepare("UPDATE members SET name = ? WHERE id = ? AND name = ''").bind(ev.name, member.id).run();
+      const link = await createLoginLink(env, req, member.id);
+      const sent = await sendEmail(env, {
+        to: ev.email,
+        subject: "Your Myo Family Health course is ready",
+        text: `Thank you for your purchase! Tap to open your course (link works for ${LOGIN_LINK_MINUTES} minutes):\n\n${link}\n\nLater, sign in anytime at ${siteUrl(env, req)}/account.html with this email.`
+      });
+      result = `unlocked ${await titles(courseIds)}${sent.sent ? "; sign-in email sent" : ". Email isn't connected yet, so send their sign-in link from Members"}`;
+    }
+  }
+
+  await env.DB.prepare(`INSERT INTO payment_events (received_at, provider, event_type, email, product_ids, result, payload)
+    VALUES (?, 'samcart', ?, ?, ?, ?, ?)`)
+    .bind(now(), ev.type, ev.email, JSON.stringify(ev.ids), result, raw.slice(0, 20000)).run();
+  // Always 200 once authenticated, so SamCart doesn't retry an event we've logged.
+  return json({ ok: true, result });
 }
 
 /* ---------------- member session ---------------- */
@@ -239,7 +357,7 @@ async function catalog(env) {
     categories: cats.results,
     courses: courses.results,
     products: products.results.map(p => ({ ...p, course_ids: JSON.parse(p.course_ids || "[]") })),
-    payments_enabled: !!env.PAYMENTS_ENABLED
+    payments_enabled: paymentsOn(env)
   });
 }
 
@@ -273,7 +391,7 @@ async function courseDetail(req, env, slug) {
     access,
     signed_in: !!member,
     completed,
-    payments_enabled: !!env.PAYMENTS_ENABLED
+    payments_enabled: paymentsOn(env)
   });
 }
 
@@ -416,6 +534,10 @@ async function adminLogin(req, env) {
   });
 }
 
+function samcartIds(v) {
+  return str(v, 300).split(/[\s,]+/).map(s => s.replace(/[^\w-]/g, "")).filter(Boolean).slice(0, 10).join(",");
+}
+
 function courseFields(b) {
   let outcomes = Array.isArray(b.outcomes) ? b.outcomes : str(b.outcomes, 4000).split("\n");
   outcomes = outcomes.map(o => str(o, 200)).filter(Boolean).slice(0, 20);
@@ -433,6 +555,7 @@ function courseFields(b) {
     accent: oneOf(b.accent, ["teal", "sage", "sand", "slate", "clay"], "teal"),
     instructor: str(b.instructor, 120),
     checkout_url: safeUrl(b.checkout_url),
+    samcart_product_id: samcartIds(b.samcart_product_id),
     status: oneOf(b.status, ["draft", "published"], "draft"),
     featured: bool(b.featured),
     sort: int(b.sort, -1e6, 1e6)
@@ -463,6 +586,7 @@ function productFields(b) {
     price_cents: int(b.price_cents, 0, 10_000_000),
     image_url: safeUrl(b.image_url),
     checkout_url: safeUrl(b.checkout_url),
+    samcart_product_id: samcartIds(b.samcart_product_id),
     course_ids: JSON.stringify([...new Set(ids)].slice(0, 50)),
     status: oneOf(b.status, ["draft", "published"], "draft"),
     sort: int(b.sort, -1e6, 1e6)
@@ -512,7 +636,7 @@ async function admin(req, env, path, method) {
     return json({
       courses: c.n, published: c.pub || 0, lessons: l.n, members: m.n,
       enrollments: e.n, subscribers: s.n, products: p.n,
-      email_connected: !!env.EMAIL_PROVIDER, payments_connected: !!env.PAYMENTS_ENABLED
+      email_connected: !!env.EMAIL_PROVIDER, payments_connected: paymentsOn(env)
     });
   }
 
@@ -678,6 +802,22 @@ async function admin(req, env, path, method) {
     }
   }
 
+  /* --- payments (SamCart) --- */
+  if (seg[0] === "payments" && method === "GET") {
+    const events = await env.DB.prepare(
+      "SELECT id, received_at, event_type, email, product_ids, result FROM payment_events ORDER BY id DESC LIMIT 200").all();
+    return json({
+      connected: !!env.SAMCART_WEBHOOK_SECRET,
+      webhook_url: env.SAMCART_WEBHOOK_SECRET ? `${siteUrl(env, req)}/api/webhooks/samcart/${env.SAMCART_WEBHOOK_SECRET}` : "",
+      events: events.results.map(e => ({ ...e, product_ids: JSON.parse(e.product_ids || "[]") }))
+    });
+  }
+  if (seg[0] === "payments" && seg[1] === "events" && seg[2] && method === "GET") {
+    const e = await env.DB.prepare("SELECT * FROM payment_events WHERE id = ?").bind(int(seg[2])).first();
+    if (!e) fail(404, "Not found.");
+    return json(e);
+  }
+
   /* --- newsletter subscribers --- */
   if (seg[0] === "subscribers") {
     if (method === "GET") {
@@ -695,6 +835,8 @@ async function admin(req, env, path, method) {
 /* ---------------- router ---------------- */
 
 async function api(req, env, path, method) {
+  const hook = path.match(/^\/api\/webhooks\/samcart\/([A-Za-z0-9_-]{16,200})$/);
+  if (hook && method === "POST") return samcartWebhook(req, env, hook[1]);
   checkSameOrigin(req);
   if (!env.SESSION_SECRET) fail(500, "Site is not configured: SESSION_SECRET is missing.");
 

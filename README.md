@@ -37,13 +37,35 @@ courses without touching code.
   they own the course. Lessons marked *free preview* are open to all.
 - **Members** sign in with a one-time email link. There are no passwords to forget or leak.
 
+## Payments: SamCart
+
+SamCart runs checkout, **upsells, downsells and order bumps** on its own pages. This
+site only needs to know which SamCart products unlock which courses:
+
+1. In SamCart, create a product for each course, plus any upsell, downsell or bump products.
+2. In the dashboard, open the course and paste:
+   - **SamCart checkout link**: the course's Buy button opens it.
+   - **SamCart product ID(s)**: buying any of these unlocks the course, including as an
+     upsell or downsell. For bundles, use **Shop** and tick the included courses.
+3. Set the secret part of the notification address (any long random string):
+   `npx wrangler secret put SAMCART_WEBHOOK_SECRET`
+4. Copy the address from **Dashboard → Payments** into SamCart's webhook / Notify URL
+   settings, for orders, upsells and refunds.
+
+After that, a purchase unlocks the course(s) for the buyer's email, and a refund removes
+access to the refunded course. Every notification is logged under **Dashboard → Payments**
+(with a *Details* view of exactly what SamCart sent), so the first real test purchase can be
+checked there. SamCart's notification fields have varied between event types, so
+`readSamcart()` in `src/worker.js` accepts the known shapes; adjust it there if a real
+notification shows a different one.
+
 ## Not connected yet (by design)
 
 Payments and email are left as clearly marked hooks in `src/worker.js`:
 
 | Hook | Today | Later |
 |---|---|---|
-| **Payments**: `grantAccess()` | Buy buttons say "Checkout opening soon" unless a checkout link is pasted into the course or product. Owners grant access under **Members**. | A verified payment webhook (e.g. Kit) calls `grantAccess(email, courseId, "purchase")`. Set `PAYMENTS_ENABLED`. |
+| **Payments** | Built for SamCart (see above). Until `SAMCART_WEBHOOK_SECRET` is set, owners grant access under **Members**. | — |
 | **Email**: `sendEmail()` | Sign-in links aren't emailed. Owners use **Copy sign-in link** in Members. Newsletter sign-ups are stored and exportable as CSV. | Plug in an email provider and set `EMAIL_PROVIDER`. Sync subscribers to the email list. |
 
 ## Safe to be public
@@ -105,6 +127,7 @@ npm run db:init:remote                          # create tables
 npm run db:seed:remote                          # optional: sample content
 npx wrangler secret put ADMIN_PASSWORD          # the owners' dashboard password
 npx wrangler secret put SESSION_SECRET          # any long random string
+npx wrangler secret put SAMCART_WEBHOOK_SECRET  # any long random string (for SamCart)
 npm run deploy
 ```
 

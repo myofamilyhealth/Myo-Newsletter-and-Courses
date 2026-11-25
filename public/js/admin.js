@@ -49,7 +49,7 @@
 
   const TABS = [
     ["overview", "Overview"], ["courses", "Courses"], ["shop", "Shop"],
-    ["categories", "Categories"], ["members", "Members"], ["newsletter", "Newsletter"]
+    ["categories", "Categories"], ["members", "Members"], ["payments", "Payments"], ["newsletter", "Newsletter"]
   ];
 
   function shell(active, content) {
@@ -73,7 +73,7 @@
     try {
       await refreshStats();
       if (tab === "courses" && arg) return await courseEditor(arg === "new" ? 0 : Number(arg));
-      const views = { overview, courses: courseList, shop: shopView, categories: categoryView, members: membersView, newsletter: newsletterView };
+      const views = { overview, courses: courseList, shop: shopView, categories: categoryView, members: membersView, payments: paymentsView, newsletter: newsletterView };
       await (views[tab] || overview)();
     } catch (e) { if (e.status !== 401) console.error(e); }
   }
@@ -96,7 +96,7 @@
       <div class="stack">
         <div class="integration"><span class="dot ${stats.payments_connected ? "on" : ""}"></span>
           <div><strong>Payments</strong><br><span class="small muted">${stats.payments_connected ? "Connected." :
-            "Not connected yet. Paste a checkout link into a course or product to make its Buy button live. Until payments are connected, give buyers access under Members."}</span></div></div>
+            "SamCart isn't connected yet. See the Payments tab for the steps. Until then, give buyers access under Members."}</span></div></div>
         <div class="integration"><span class="dot ${stats.email_connected ? "on" : ""}"></span>
           <div><strong>Email</strong><br><span class="small muted">${stats.email_connected ? "Connected." :
             "Not connected yet. Sign-in links aren't emailed automatically, so copy them from Members and send them yourself. Newsletter sign-ups are saved here."}</span></div></div>
@@ -174,8 +174,10 @@
             ${[["teal", "Teal"], ["sage", "Sage"], ["sand", "Sand"], ["slate", "Slate"], ["clay", "Clay"]].map(([k, v]) => opt(k, v, c.accent)).join("")}</select></div>
           <div class="field"><label for="f-ins">Instructor</label><input class="input" id="f-ins" name="instructor" value="${esc(c.instructor)}"></div>
           <div class="field full"><label for="f-cover">Cover image URL (optional)</label><input class="input" id="f-cover" name="cover_url" value="${esc(c.cover_url)}" placeholder="https://… (16:9 works best). Empty = brand colour card"></div>
-          <div class="field full"><label for="f-checkout">Checkout link (optional)</label><input class="input" id="f-checkout" name="checkout_url" value="${esc(c.checkout_url)}" placeholder="Payment page URL. Leave empty until payments are connected">
-            <span class="hint">When set, the course's Buy button opens this link.</span></div>
+          <div class="field full"><label for="f-checkout">SamCart checkout link</label><input class="input" id="f-checkout" name="checkout_url" value="${esc(c.checkout_url)}" placeholder="https://yourstore.samcart.com/products/…">
+            <span class="hint">The course's Buy button opens this. Upsells, downsells and order bumps are set up on the SamCart side.</span></div>
+          <div class="field full"><label for="f-scid">SamCart product ID(s)</label><input class="input" id="f-scid" name="samcart_product_id" value="${esc(c.samcart_product_id || "")}" placeholder="e.g. 123456">
+            <span class="hint">Buying any of these SamCart products unlocks this course, including when it's sold as an upsell or downsell. Separate several IDs with commas. <a href="#payments">Where to find it</a></span></div>
           <div class="field full"><label for="f-out">What you'll learn (one per line)</label><textarea class="input" id="f-out" name="outcomes" rows="4">${esc((c.outcomes || []).join("\n"))}</textarea></div>
           <div class="field full">${mdField("description", "Course description", c.description)}</div>
           <label class="check"><input type="checkbox" name="featured" ${c.featured ? "checked" : ""}> Feature on the home page</label>
@@ -330,7 +332,9 @@
         <div class="field"><label for="p-price">Price (USD)</label><input class="input" id="p-price" name="price" inputmode="decimal" value="${dollars(p.price_cents)}"></div>
         <div class="field"><label for="p-sort">Display order</label><input class="input" id="p-sort" name="sort" type="number" value="${Number(p.sort) || 0}"></div>
         <div class="field full"><label for="p-img">Image URL (optional)</label><input class="input" id="p-img" name="image_url" value="${esc(p.image_url)}"></div>
-        <div class="field full"><label for="p-co">Checkout or booking link</label><input class="input" id="p-co" name="checkout_url" value="${esc(p.checkout_url)}" placeholder="Leave empty until payments are connected"></div>
+        <div class="field full"><label for="p-co">SamCart checkout (or booking) link</label><input class="input" id="p-co" name="checkout_url" value="${esc(p.checkout_url)}" placeholder="https://yourstore.samcart.com/products/…"></div>
+        <div class="field full"><label for="p-scid">SamCart product ID(s)</label><input class="input" id="p-scid" name="samcart_product_id" value="${esc(p.samcart_product_id || "")}" placeholder="e.g. 123456">
+          <span class="hint">For bundles: buying this SamCart product unlocks every course ticked below.</span></div>
         <fieldset class="field full" style="border:0;padding:0;margin:0"><legend class="label">Courses included (for bundles)</legend>
           <div style="display:grid;gap:6px;margin-top:6px">${courses.map(c => `<label class="check"><input type="checkbox" name="course" value="${c.id}" ${p.course_ids.includes(c.id) ? "checked" : ""}> ${esc(c.title)}</label>`).join("") || `<span class="muted small">No courses yet.</span>`}</div></fieldset>
         <div class="field full">${mdField("description", "Description", p.description)}</div>
@@ -435,6 +439,51 @@
       await call("/api/admin/members/grant", "POST", formData(e.target));
       toast("Access granted."); membersView();
     };
+  }
+
+  /* ---------------- payments (SamCart) ---------------- */
+
+  async function paymentsView() {
+    const d = await call("/api/admin/payments");
+    shell("payments", `
+      <div class="adm-head"><div><h1>Payments</h1>
+        <p class="muted small">SamCart handles checkout, upsells, downsells and order bumps. This site unlocks the courses.</p></div></div>
+      <div class="integration" style="margin-bottom:20px"><span class="dot ${d.connected ? "on" : ""}"></span>
+        <div><strong>SamCart ${d.connected ? "is connected" : "isn't connected yet"}</strong><br>
+        <span class="small muted">${d.connected ? "Purchases unlock courses automatically." : "The site's administrator needs to set the SAMCART_WEBHOOK_SECRET secret first (see the README)."}</span></div></div>
+
+      <div class="panel stack">
+        <h2 style="font-size:20px">Set up a course in SamCart</h2>
+        <ol class="prose small" style="margin:0">
+          <li>In SamCart, create a product for the course (and any upsell, downsell or order-bump products).</li>
+          <li>Copy the product's <strong>checkout page link</strong> into the course's <em>SamCart checkout link</em> field here.</li>
+          <li>Copy the product's <strong>ID</strong> (the number in the product's address in SamCart) into <em>SamCart product ID(s)</em>.
+            Do the same for every upsell or downsell product that should unlock a course. Bundles go under Shop.</li>
+          <li>Build your upsell and downsell funnel in SamCart as usual. Nothing else is needed here.</li>
+        </ol>
+        ${d.connected ? `<div class="field"><label for="wh">Notification address for SamCart</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" id="wh" readonly value="${esc(d.webhook_url)}" style="flex:1 1 300px">
+          <button class="btn btn-ghost" id="copy-wh" type="button">Copy</button></div>
+          <span class="hint">In SamCart, add this as a webhook (SamCart calls it a Notify URL; see their “Using Webhooks” help article) for orders, upsells and refunds.
+            Keep it private: anyone with it could unlock courses.</span></div>` : ""}
+      </div>
+
+      <h2 style="font-size:20px;margin:32px 0 12px">Recent purchases &amp; refunds</h2>
+      <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Event</th><th>Customer</th><th>SamCart product</th><th>What happened</th><th></th></tr></thead>
+      <tbody>${d.events.map(e => `<tr><td class="small">${fmtDate(e.received_at)}</td><td class="small">${esc(e.event_type || "—")}</td>
+        <td>${esc(e.email || "—")}</td><td class="small">${esc(e.product_ids.join(", ") || "—")}</td>
+        <td class="small">${esc(e.result)}</td><td><div class="row-actions"><button class="btn btn-ghost btn-sm" data-raw="${e.id}">Details</button></div></td></tr>`).join("")
+        || `<tr><td colspan="6" class="muted center">No purchases yet. They'll appear here as SamCart sends them.</td></tr>`}</tbody></table></div>`);
+    const cp = $("#copy-wh");
+    if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText($("#wh").value); toast("Copied."); } catch (e) { $("#wh").select(); } };
+    $$("[data-raw]").forEach(b => b.onclick = async () => {
+      const e = await call(`/api/admin/payments/events/${b.dataset.raw}`);
+      let pretty = e.payload;
+      try { pretty = JSON.stringify(JSON.parse(e.payload), null, 2); } catch (x) { /* not JSON */ }
+      openDialog("Notification details", `<p class="small muted" style="margin-bottom:10px">${esc(e.result)}</p>
+        <pre style="white-space:pre-wrap;word-break:break-word;font-size:13px;background:var(--offwhite);padding:14px;border-radius:12px;max-height:60vh;overflow:auto">${esc(pretty)}</pre>`,
+        `<span></span><button class="btn btn-primary" data-close>Close</button>`);
+    });
   }
 
   /* ---------------- newsletter ---------------- */

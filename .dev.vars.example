@@ -3,3 +3,5 @@ ADMIN_PASSWORD=change-me-locally
 SESSION_SECRET=any-long-random-string-for-local-dev
 # Shows sign-in links on screen instead of emailing them. LOCAL ONLY.
 DEV_SHOW_LOGIN_LINKS=true
+# Secret part of the SamCart notification address. Any long random string.
+SAMCART_WEBHOOK_SECRET=local-test-secret-0123456789abcdef

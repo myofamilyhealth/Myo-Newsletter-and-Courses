@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS courses (
   cover_url        TEXT NOT NULL DEFAULT '',
   accent           TEXT NOT NULL DEFAULT 'teal',  -- teal | sage | sand | slate | clay
   instructor       TEXT NOT NULL DEFAULT '',
-  checkout_url     TEXT NOT NULL DEFAULT '',      -- payment link, wired up later
+  checkout_url     TEXT NOT NULL DEFAULT '',      -- SamCart checkout page URL
+  samcart_product_id TEXT NOT NULL DEFAULT '',    -- SamCart product ID(s), comma-separated
   status           TEXT NOT NULL DEFAULT 'draft', -- draft | published
   featured         INTEGER NOT NULL DEFAULT 0,
   sort             INTEGER NOT NULL DEFAULT 0,
@@ -64,7 +65,8 @@ CREATE TABLE IF NOT EXISTS products (
   kind         TEXT NOT NULL DEFAULT 'digital',   -- digital | physical | bundle | session
   price_cents  INTEGER NOT NULL DEFAULT 0,
   image_url    TEXT NOT NULL DEFAULT '',
-  checkout_url TEXT NOT NULL DEFAULT '',          -- payment link, wired up later
+  checkout_url TEXT NOT NULL DEFAULT '',          -- SamCart checkout page URL
+  samcart_product_id TEXT NOT NULL DEFAULT '',    -- SamCart product ID(s), comma-separated
   course_ids   TEXT NOT NULL DEFAULT '[]',        -- JSON: courses a bundle unlocks
   status       TEXT NOT NULL DEFAULT 'draft',
   sort         INTEGER NOT NULL DEFAULT 0,
@@ -125,3 +127,17 @@ CREATE TABLE IF NOT EXISTS attempts (
   ok   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_attempts ON attempts (kind, at DESC);
+
+-- Every SamCart notification received, so purchases can be audited and
+-- the payload format checked. Card data is never sent by SamCart here.
+CREATE TABLE IF NOT EXISTS payment_events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  received_at TEXT NOT NULL,
+  provider    TEXT NOT NULL DEFAULT 'samcart',
+  event_type  TEXT NOT NULL DEFAULT '',
+  email       TEXT NOT NULL DEFAULT '',
+  product_ids TEXT NOT NULL DEFAULT '[]',
+  result      TEXT NOT NULL DEFAULT '',   -- what the site did: granted / revoked / no match / ignored
+  payload     TEXT NOT NULL DEFAULT ''    -- raw notification, trimmed
+);
+CREATE INDEX IF NOT EXISTS idx_payment_events ON payment_events (received_at DESC);
