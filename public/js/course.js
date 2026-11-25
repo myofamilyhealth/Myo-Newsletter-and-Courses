@@ -1,5 +1,6 @@
 (async function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, md, money, minutes, cover, buyButton, $, AUDIENCE, LEVEL } = window.MFH;
   const slug = new URLSearchParams(location.search).get("c") || "";
   const root = $("#course");
@@ -10,7 +11,7 @@
   } catch (e) {
     root.innerHTML = `<div class="wrap section narrow center stack"><h1>Course not found</h1>
       <p class="muted">It may have moved or isn't published yet.</p>
-      <p><a class="btn btn-primary" href="/courses.html">Browse all courses</a></p></div>`;
+      <p><a class="btn btn-primary" href="${B}courses.html">Browse all courses</a></p></div>`;
     return;
   }
 
@@ -19,7 +20,7 @@
   const done = new Set(d.completed);
   const total = lessons.reduce((n, l) => n + (l.duration_min || 0), 0);
   const firstOpen = lessons.find(l => !done.has(l.id)) || lessons[0];
-  const learnUrl = id => `/learn.html?c=${encodeURIComponent(c.slug)}&l=${id}`;
+  const learnUrl = id => `${B}learn.html?c=${encodeURIComponent(c.slug)}&l=${id}`;
   const previews = lessons.filter(l => l.is_preview);
   const pct = lessons.length ? Math.round(100 * done.size / lessons.length) : 0;
 
@@ -50,18 +51,18 @@
   if (d.access) {
     action = `<a class="btn btn-primary btn-block" href="${firstOpen ? learnUrl(firstOpen.id) : "#"}">${done.size ? "Continue course" : c.price_cents ? "Start course" : "Start free course"}</a>
       ${done.size ? `<div class="progress"><i style="width:${pct}%"></i></div><p class="small muted">${pct}% complete</p>` : ""}
-      ${!c.price_cents && !d.signed_in ? `<p class="small muted">Free and open to everyone. <a href="/account.html?next=${encodeURIComponent(location.pathname + location.search)}">Sign in</a> to save your progress.</p>` : ""}`;
+      ${!c.price_cents && !d.signed_in ? `<p class="small muted">Free and open to everyone. <a href="${B}account.html?next=${encodeURIComponent(location.pathname + location.search)}">Sign in</a> to save your progress.</p>` : ""}`;
   } else {
     action = `${buyButton(c, "Buy this course", d.payments_enabled)}
       ${previews.length ? `<a class="btn btn-ghost btn-block" href="${learnUrl(previews[0].id)}">Watch a free preview</a>` : ""}
-      ${d.signed_in ? "" : `<p class="small muted center">Already bought it? <a href="/account.html?next=${encodeURIComponent(location.pathname + location.search)}">Sign in</a></p>`}`;
+      ${d.signed_in ? "" : `<p class="small muted center">Already bought it? <a href="${B}account.html?next=${encodeURIComponent(location.pathname + location.search)}">Sign in</a></p>`}`;
   }
 
   root.innerHTML = `
   <section class="course-hero">
     <div class="wrap course-layout">
       <div class="stack">
-        <a class="small muted" href="/courses.html${c.category_slug ? "?cat=" + encodeURIComponent(c.category_slug) : ""}" style="text-decoration:none">← ${esc(c.category_name || "All courses")}</a>
+        <a class="small muted" href="${B}courses.html${c.category_slug ? "?cat=" + encodeURIComponent(c.category_slug) : ""}" style="text-decoration:none">← ${esc(c.category_name || "All courses")}</a>
         <h1 style="font-size:clamp(30px,4.6vw,50px)">${esc(c.title)}</h1>
         ${c.subtitle ? `<p style="font-size:19px" class="muted">${esc(c.subtitle)}</p>` : ""}
         <div class="card-meta" style="font-size:15px">

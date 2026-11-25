@@ -1,5 +1,6 @@
 (async function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, md, minutes, videoEmbed, buyButton, toast, $ } = window.MFH;
   const params = new URLSearchParams(location.search);
   const slug = params.get("c") || "";
@@ -9,7 +10,7 @@
   try {
     course = await api("/api/courses/" + encodeURIComponent(slug));
   } catch (e) {
-    $("#lesson").innerHTML = `<div class="locked"><h2>Course not found</h2><p class="muted" style="margin-top:10px"><a href="/courses.html">Browse courses</a></p></div>`;
+    $("#lesson").innerHTML = `<div class="locked"><h2>Course not found</h2><p class="muted" style="margin-top:10px"><a href="${B}courses.html">Browse courses</a></p></div>`;
     return;
   }
   const c = course.course;
@@ -17,7 +18,7 @@
   const done = new Set(course.completed);
   if (!lessonId && lessons[0]) lessonId = lessons[0].id;
 
-  const url = id => `/learn.html?c=${encodeURIComponent(c.slug)}&l=${id}`;
+  const url = id => `${B}learn.html?c=${encodeURIComponent(c.slug)}&l=${id}`;
   const canOpen = l => course.access || l.is_preview;
 
   function renderSide() {
@@ -30,7 +31,7 @@
         ${icon}<span class="l-title">${esc(l.title)}</span><span class="l-meta">${minutes(l.duration_min)}</span></a>`;
     }).join("");
     $("#side").innerHTML = `<div class="side-head">
-        <a class="small muted" href="/course.html?c=${encodeURIComponent(c.slug)}" style="text-decoration:none">← Course overview</a>
+        <a class="small muted" href="${B}course.html?c=${encodeURIComponent(c.slug)}" style="text-decoration:none">← Course overview</a>
         <h3 style="margin:8px 0 12px">${esc(c.title)}</h3>
         ${course.signed_in || course.access ? `<div class="progress"><i style="width:${pct}%"></i></div>
         <p class="small muted" style="margin-top:6px">${done.size} of ${lessons.length} complete</p>` : ""}
@@ -56,7 +57,7 @@
         <p class="muted">This lesson is part of <strong>${esc(c.title)}</strong>. Get the full course to unlock every lesson.</p>
         <div style="max-width:320px;margin:20px auto 0" class="stack">
           ${buyButton(c, "Get the full course", course.payments_enabled)}
-          ${res.signed_in ? "" : `<a class="btn btn-ghost btn-block" href="/account.html?next=${encodeURIComponent(location.pathname + location.search)}">I already bought it — sign in</a>`}
+          ${res.signed_in ? "" : `<a class="btn btn-ghost btn-block" href="${B}account.html?next=${encodeURIComponent(location.pathname + location.search)}">I already bought it — sign in</a>`}
         </div></div>`;
       return;
     }
@@ -79,7 +80,7 @@
           ${next ? `<a class="btn btn-ghost" href="${url(next.id)}">Next →</a>` : ""}
         </div>
       </div>
-      ${!course.signed_in ? `<p class="small muted" style="margin-top:14px"><a href="/account.html?next=${encodeURIComponent(location.pathname + location.search)}">Sign in</a> to save your progress.</p>` : ""}`;
+      ${!course.signed_in ? `<p class="small muted" style="margin-top:14px"><a href="${B}account.html?next=${encodeURIComponent(location.pathname + location.search)}">Sign in</a> to save your progress.</p>` : ""}`;
 
     $("#mark").onclick = async () => {
       if (!course.signed_in) { toast("Sign in to save your progress."); return; }

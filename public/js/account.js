@@ -1,5 +1,6 @@
 (async function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, courseCard, $ } = window.MFH;
   const params = new URLSearchParams(location.search);
   const next = params.get("next") || "";
@@ -22,7 +23,7 @@
           <input class="input" id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
         <button class="btn btn-primary" type="submit">Email me a sign-in link</button>
         <p class="form-msg" aria-live="polite"></p>
-        <p class="small muted">Looking for something to start with? <a href="/courses.html?price=free">Try a free course</a>, with no sign-in needed.</p>
+        <p class="small muted">Looking for something to start with? <a href="${B}courses.html?price=free">Try a free course</a>, with no sign-in needed.</p>
       </form>
     </section>`;
     const form = $("#login");
@@ -53,7 +54,7 @@
   <section class="wrap" style="padding-top:28px">
     <div class="grid">${courses.length ? courses.map(c => courseCard(c, {
       progress: c.lesson_count ? Math.round(100 * c.completed_count / c.lesson_count) : 0, badges: false })).join("")
-      : `<div class="empty" style="grid-column:1/-1">You don't have any courses yet. <a href="/courses.html">Browse courses →</a></div>`}</div>
+      : `<div class="empty" style="grid-column:1/-1">You don't have any courses yet. <a href="${B}courses.html">Browse courses →</a></div>`}</div>
   </section>`;
-  $("#logout").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); location.href = "/"; };
+  $("#logout").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); location.href = B; };
 })();

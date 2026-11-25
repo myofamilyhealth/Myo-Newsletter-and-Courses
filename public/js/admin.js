@@ -2,6 +2,7 @@
    file only draws screens. Nothing secret is in it. */
 (function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, md, money, minutes, toast, $, $$, AUDIENCE, LEVEL } = window.MFH;
   const app = () => $("#app");
   const dlg = () => $("#dlg");
@@ -26,7 +27,7 @@
   function showLogin(msg) {
     $("#signout").hidden = true;
     app().innerHTML = `<section class="section"><form class="panel stack" id="login" style="max-width:420px;margin:0 auto">
-      <img src="/assets/myo-tree.png" alt="" width="56">
+      <img src="${B}assets/myo-tree.png" alt="" width="56">
       <h1 style="font-size:28px">Owner sign in</h1>
       <p class="muted">Manage courses, the shop and members.</p>
       <div class="field"><label for="pw">Password</label>
@@ -124,7 +125,7 @@
           <td>${money(c.price_cents)}</td><td>${c.lesson_count}</td><td>${c.student_count}</td>
           <td><div class="row-actions">
             <button class="btn btn-ghost btn-sm" data-edit="${c.id}">Edit</button>
-            ${c.status === "published" ? `<a class="btn btn-ghost btn-sm" href="/course.html?c=${encodeURIComponent(c.slug)}" target="_blank">View</a>` : ""}
+            ${c.status === "published" ? `<a class="btn btn-ghost btn-sm" href="${B}course.html?c=${encodeURIComponent(c.slug)}" target="_blank">View</a>` : ""}
             <button class="btn btn-ghost btn-sm" data-dup="${c.id}">Duplicate</button>
           </div></td></tr>`).join("")}</tbody></table></div>`
       : `<div class="empty">No courses yet. Create your first one!</div>`}`);
@@ -149,7 +150,7 @@
         <div><a class="small muted" href="#courses" style="text-decoration:none">← All courses</a>
           <h1 style="margin-top:6px">${id ? esc(c.title) : "New course"}</h1></div>
         <div class="status-row">
-          ${id && c.status === "published" ? `<a class="btn btn-ghost" href="/course.html?c=${encodeURIComponent(c.slug)}" target="_blank">View live ↗</a>` : ""}
+          ${id && c.status === "published" ? `<a class="btn btn-ghost" href="${B}course.html?c=${encodeURIComponent(c.slug)}" target="_blank">View live ↗</a>` : ""}
           <button class="btn btn-primary" form="course-form" type="submit">${id ? "Save changes" : "Create course"}</button>
         </div>
       </div>
@@ -464,6 +465,16 @@
   /* ---------------- boot ---------------- */
 
   async function boot() {
+    if (window.MFH.STATIC) {
+      app().innerHTML = `<section class="section"><div class="panel stack" style="max-width:560px;margin:0 auto">
+        <img src="${B}assets/myo-tree.png" alt="" width="56">
+        <h1 style="font-size:28px">The dashboard needs the live server</h1>
+        <p class="muted">This copy of the site runs on GitHub Pages, which can only show pages. Creating courses,
+          member sign-in and locked lessons all run on the Cloudflare server. Once it's connected, the dashboard opens here.</p>
+        <p class="small muted">Setup steps are in the README under "Deploy".</p>
+        <p><a class="btn btn-ghost" href="${B}">← Back to the site</a></p></div></section>`;
+      return;
+    }
     try { await api("/api/admin/stats"); }
     catch (e) { if (e.status === 401) return showLogin(); return showLogin(e.message); }
     $("#signout").hidden = false;

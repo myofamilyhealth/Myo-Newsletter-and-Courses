@@ -1,5 +1,6 @@
 (async function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, productCard, courseCard, $, $$ } = window.MFH;
   const LABELS = { "": "Everything", bundle: "Bundles", digital: "Downloads", physical: "Products", session: "Sessions" };
   let data, kind = new URLSearchParams(location.search).get("type") || "";

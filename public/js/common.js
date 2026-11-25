@@ -3,9 +3,30 @@
 (function () {
   "use strict";
 
+  /* Where the site lives. "/" on Cloudflare; "/Myo-Newsletter-and-Courses/"
+     on GitHub Pages. Worked out from this script's own URL. */
+  const BASE = (document.currentScript && document.currentScript.src || location.href)
+    .replace(/js\/common\.js(\?.*)?$/, "");
+  const B = BASE;
+
+  /* STATIC mode: GitHub Pages (or a file opened locally) has no server,
+     so the catalog is read from data/*.json built by scripts/export-static.mjs.
+     Sign-in, locked lessons and the owner dashboard need the live server. */
+  const STATIC = /\.github\.io$/.test(location.hostname) || location.protocol === "file:" || sessionStorageFlag();
+
+  function sessionStorageFlag() {
+    try {
+      if (new URLSearchParams(location.search).has("static")) sessionStorage.setItem("mfh_static", "1");
+      return sessionStorage.getItem("mfh_static") === "1";
+    } catch (e) { return false; }
+  }
+
   const SITE = {
     booking: "https://amy-rondoni.clientsecure.me",
     phone: "707.631.1550",
+    // Brevo sign-up form already used by the newsletter landing page.
+    // Shown on GitHub Pages, where the site's own sign-up form has no server.
+    brevoForm: "https://e3961feb.sibforms.com/v2/serve/MUIFAIp6RUy17cEz4RshfnfNGuq1fh4h4dR952P97BU-q72mx8NAH0Cw_ri4DzhxhMjd0BeXWM6INiNIwuXmWGAV_DkUjAnCOFtfaAo2WQhZUHN4Zj8p8l7jmq8Ht-sWyTnLOAs1nYwwg73AiX6yu7EeQ5ta5xoa2FZ3LvWUM3il6nmgCsEfgw1dTeAhVOdYfY7S52lTYAW9Tti1cA==",
     social: {
       Instagram: "https://www.instagram.com/myofamilyhealth/",
       Facebook: "https://www.facebook.com/myofamilyhealth",
@@ -39,9 +60,52 @@
   const AUDIENCE = { adults: "Adults", kids: "Kids", families: "Families", professionals: "Professionals" };
   const LEVEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
 
+  class ApiError extends Error {
+    constructor(msg, status, data) { super(msg); this.status = status; this.data = data || {}; }
+  }
+
+  const staticCache = {};
+  function staticJson(file) {
+    if (!(file in staticCache)) {
+      staticCache[file] = fetch(BASE + "data/" + file).then(r => r.ok ? r.json() : null).catch(() => null);
+    }
+    return staticCache[file];
+  }
+
+  /* Answers the same questions as the server, from the exported JSON. */
+  async function staticApi(path, opts) {
+    const method = (opts.method || "GET").toUpperCase();
+    const result = (data, status) => {
+      status = status || 200;
+      if (status >= 400 && !opts.allowError) throw new ApiError(data.error || "Not available.", status, data);
+      return { ...data, __status: status };
+    };
+    if (method !== "GET") {
+      return result({ error: "This part of the site opens once the live server is connected." }, 503);
+    }
+    if (path === "/api/catalog") return result(await staticJson("catalog.json") || { categories: [], courses: [], products: [] });
+    if (path === "/api/me") return result({ signed_in: false, static: true });
+    let m;
+    if ((m = path.match(/^\/api\/courses\/([a-z0-9-]+)$/))) {
+      const d = await staticJson("courses/" + m[1] + ".json");
+      if (!d) return result({ error: "Course not found." }, 404);
+      return result({ ...d, access: !d.course.price_cents, signed_in: false, completed: [], static: true });
+    }
+    if ((m = path.match(/^\/api\/courses\/([a-z0-9-]+)\/lessons\/(\d+)$/))) {
+      const course = await staticJson("courses/" + m[1] + ".json");
+      const l = course && course.lessons.find(x => x.id === Number(m[2]));
+      if (!l) return result({ error: "Lesson not found." }, 404);
+      const full = await staticJson("lessons/" + l.id + ".json");
+      if (full) return result({ locked: false, lesson: full });
+      return result({ locked: true, signed_in: false, static: true, lesson: { id: l.id, title: l.title } }, 403);
+    }
+    return result({ error: "Not found." }, 404);
+  }
+
   async function api(path, opts) {
     opts = opts || {};
-    const res = await fetch(path, {
+    if (STATIC) return staticApi(path, opts);
+    const res = await fetch(BASE + path.replace(/^\//, ""), {
       method: opts.method || "GET",
       headers: opts.body ? { "content-type": "application/json" } : {},
       body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -50,9 +114,7 @@
     let data = {};
     try { data = await res.json(); } catch (e) { /* empty body */ }
     if (!res.ok && !opts.allowError) {
-      const err = new Error(data.error || "Something went wrong.");
-      err.status = res.status; err.data = data;
-      throw err;
+      throw new ApiError(data.error || "Something went wrong.", res.status, data);
     }
     data.__status = res.status;
     return data;
@@ -168,7 +230,7 @@
     }
     if (opts.extraBadge) badges.push(opts.extraBadge);
     return `<div class="cover accent-${esc(c.accent || "teal")}">
-      ${img ? `<img class="cover-img" src="${esc(img)}" alt="" loading="lazy">` : `<div class="cover-mark"><img src="/assets/myo-tree.png" alt=""></div>`}
+      ${img ? `<img class="cover-img" src="${esc(img)}" alt="" loading="lazy">` : `<div class="cover-mark"><img src="${B}assets/myo-tree.png" alt=""></div>`}
       ${badges.length ? `<div class="badge-row">${badges.join("")}</div>` : ""}
     </div>`;
   }
@@ -176,7 +238,7 @@
   function courseCard(c, opts) {
     opts = opts || {};
     const pct = opts.progress != null ? opts.progress : null;
-    return `<a class="card" href="/course.html?c=${encodeURIComponent(c.slug)}">
+    return `<a class="card" href="${B}course.html?c=${encodeURIComponent(c.slug)}">
       ${cover(c, opts)}
       <div class="card-body">
         ${c.category_name ? `<span class="card-cat">${esc(c.category_name)}</span>` : ""}
@@ -216,7 +278,7 @@
       <div class="card-body">
         <h3>${esc(p.name)}</h3>
         ${p.tagline ? `<p>${esc(p.tagline)}</p>` : ""}
-        ${included.length ? `<div class="small muted">Includes: ${included.map(c => `<a href="/course.html?c=${encodeURIComponent(c.slug)}">${esc(c.title)}</a>`).join(", ")}</div>` : ""}
+        ${included.length ? `<div class="small muted">Includes: ${included.map(c => `<a href="${B}course.html?c=${encodeURIComponent(c.slug)}">${esc(c.title)}</a>`).join(", ")}</div>` : ""}
       </div>
       <div class="card-foot" style="gap:14px">
         <span class="price">${money(p.price_cents)}</span>
@@ -228,20 +290,20 @@
   /* ---------- header & footer ---------- */
 
   function header() {
-    const here = location.pathname.replace(/\/index\.html$/, "/");
-    const link = (href, text) => `<li><a href="${href}"${here === href ? ' aria-current="page"' : ""}>${text}</a></li>`;
+    const here = location.pathname.split("/").pop() || "index.html";
+    const link = (page, text) => `<li><a href="${B}${page}"${here === page ? ' aria-current="page"' : ""}>${text}</a></li>`;
     return `<a class="sr-only" href="#main">Skip to content</a>
     <header class="site-header"><div class="wrap nav">
-      <a class="brand" href="/" aria-label="Myo Family Health home"><img src="/assets/myo-family-health-logo.png" alt="Myo Family Health" width="185" height="30"></a>
+      <a class="brand" href="${B}" aria-label="Myo Family Health home"><img src="${B}assets/myo-family-health-logo.png" alt="Myo Family Health" width="185" height="30"></a>
       <ul class="nav-links" id="nav-links">
-        ${link("/courses.html", "Courses")}
-        ${link("/shop.html", "Shop")}
-        ${link("/#newsletter", "Newsletter")}
-        ${link("/account.html", "My courses")}
+        ${link("courses.html", "Courses")}
+        ${link("shop.html", "Shop")}
+        ${link("index.html#newsletter", "Newsletter")}
+        ${link("account.html", "My courses")}
       </ul>
       <div class="nav-cta">
         <a class="btn btn-ghost btn-sm" href="${SITE.booking}" target="_blank" rel="noopener">Book a consult</a>
-        <a class="btn btn-primary btn-sm" href="/courses.html">Browse courses</a>
+        <a class="btn btn-primary btn-sm" href="${B}courses.html">Browse courses</a>
         <button class="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="nav-links"><span></span><span></span><span></span></button>
       </div>
     </div></header>`;
@@ -252,16 +314,16 @@
     return `<footer class="site-footer"><div class="wrap">
       <div class="foot-grid">
         <div>
-          <img class="foot-logo" src="/assets/myo-tree.png" alt="">
+          <img class="foot-logo" src="${B}assets/myo-tree.png" alt="">
           <p><strong style="color:#fff">Myo Family Health</strong><br>Breathe Better… Live Better!</p>
         </div>
         <div><h4>Learn</h4><ul>
-          <li><a href="/courses.html">All courses</a></li>
-          <li><a href="/courses.html?price=free">Free courses</a></li>
-          <li><a href="/account.html">My courses</a></li>
+          <li><a href="${B}courses.html">All courses</a></li>
+          <li><a href="${B}courses.html?price=free">Free courses</a></li>
+          <li><a href="${B}account.html">My courses</a></li>
         </ul></div>
         <div><h4>Shop</h4><ul>
-          <li><a href="/shop.html">Shop</a></li>
+          <li><a href="${B}shop.html">Shop</a></li>
           <li><a href="${SITE.booking}" target="_blank" rel="noopener">Book a consultation</a></li>
           <li><a href="tel:${SITE.phone.replace(/\D/g, "")}">${SITE.phone}</a></li>
         </ul></div>
@@ -291,6 +353,15 @@
   /* ---------- newsletter forms (any form[data-newsletter]) ---------- */
 
   function bindNewsletter() {
+    if (STATIC) {
+      $$("form[data-newsletter]").forEach(form => {
+        const box = document.createElement("div");
+        box.innerHTML = `<iframe src="${esc(SITE.brevoForm)}" title="Myo Family Health newsletter sign-up form"
+          style="display:block;width:100%;max-width:540px;height:340px;border:0;border-radius:16px;background:#fff"></iframe>`;
+        form.replaceWith(box);
+      });
+      return;
+    }
     $$("form[data-newsletter]").forEach(form => {
       form.addEventListener("submit", async e => {
         e.preventDefault();
@@ -314,5 +385,5 @@
 
   document.addEventListener("DOMContentLoaded", () => { mountChrome(); bindNewsletter(); });
 
-  window.MFH = { SITE, esc, $, $$, money, minutes, api, toast, md, videoEmbed, courseCard, productCard, buyButton, cover, AUDIENCE, LEVEL };
+  window.MFH = { BASE, STATIC, SITE, esc, $, $$, money, minutes, api, toast, md, videoEmbed, courseCard, productCard, buyButton, cover, AUDIENCE, LEVEL };
 })();

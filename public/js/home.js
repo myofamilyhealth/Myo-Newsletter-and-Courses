@@ -1,5 +1,6 @@
 (async function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, courseCard, productCard, $, money } = window.MFH;
   try {
     const data = await api("/api/catalog");
@@ -13,7 +14,7 @@
     const counts = {};
     courses.forEach(c => { if (c.category_slug) counts[c.category_slug] = (counts[c.category_slug] || 0) + 1; });
     const cats = data.categories.filter(c => counts[c.slug]);
-    $("#cats").innerHTML = cats.map(c => `<a class="cat-tile" href="/courses.html?cat=${encodeURIComponent(c.slug)}">
+    $("#cats").innerHTML = cats.map(c => `<a class="cat-tile" href="${B}courses.html?cat=${encodeURIComponent(c.slug)}">
         <strong>${esc(c.name)}</strong><span>${counts[c.slug]} course${counts[c.slug] === 1 ? "" : "s"}${c.description ? " · " + esc(c.description) : ""}</span></a>`).join("");
     if (!cats.length) $("#cats").closest("section").hidden = true;
 

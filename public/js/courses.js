@@ -1,5 +1,6 @@
 (async function () {
   "use strict";
+  const B = window.MFH.BASE;
   const { api, esc, courseCard, $, $$, AUDIENCE } = window.MFH;
   const params = new URLSearchParams(location.search);
   const state = { cat: params.get("cat") || "", aud: params.get("for") || "", price: params.get("price") || "", q: params.get("q") || "" };

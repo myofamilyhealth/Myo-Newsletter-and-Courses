@@ -65,6 +65,25 @@ This repository contains **no secrets and no customer data**:
 For paid videos, use **unlisted** YouTube or **private/domain-locked** Vimeo videos so they
 can't be found by searching.
 
+## Two ways it runs
+
+| | **GitHub Pages** (free, live now) | **Cloudflare** (full site) |
+|---|---|---|
+| URL | https://myofamilyhealth.github.io/Myo-Newsletter-and-Courses/ | `https://myo-courses.<account>.workers.dev` or your domain |
+| Catalog, course pages, shop | ✓ | ✓ |
+| Free courses + free previews | ✓ | ✓ |
+| Newsletter sign-up | ✓ (your Brevo form) | ✓ (saved in the dashboard) |
+| Paid lessons | Locked (content is never published to Pages) | Unlock for buyers |
+| Member sign-in, progress | — | ✓ |
+| Owner dashboard | — | ✓ |
+
+GitHub Pages is rebuilt on every push by `.github/workflows/pages.yml`, which runs
+`scripts/export-static.mjs` to turn `seed.sql` into `public/data/*.json`. Only free
+courses and free-preview lessons are exported. **Never put real paid lesson content in
+`seed.sql`**: the repo is public. Paid content belongs in the dashboard (Cloudflare database).
+
+One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
 ## Run it locally
 
 ```bash
