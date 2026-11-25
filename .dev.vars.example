@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development only. .dev.vars is git-ignored.
+ADMIN_PASSWORD=change-me-locally
+SESSION_SECRET=any-long-random-string-for-local-dev
+# Shows sign-in links on screen instead of emailing them. LOCAL ONLY.
+DEV_SHOW_LOGIN_LINKS=true

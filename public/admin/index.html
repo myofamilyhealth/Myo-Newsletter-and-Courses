@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/assets/myo-tree.png">
+<meta name="theme-color" content="#457F7C">
+<meta property="og:site_name" content="Myo Family Health">
+<meta property="og:image" content="/assets/mfh-social.jpg">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/common.js" defer></script>
+<title>Owner Dashboard — Myo Family Health</title>
+<meta name="robots" content="noindex, nofollow">
+<script src="/js/admin.js" defer></script>
+<style>
+  body { background: #F2F6F5; }
+  .adm-top { background: var(--slate); color: #fff; }
+  .adm-top .nav { height: 60px; }
+  .adm-top .brand img { filter: brightness(0) invert(1); height: 24px; }
+  .adm { display: grid; grid-template-columns: 220px 1fr; gap: 28px; padding-block: 28px 80px; align-items: start; }
+  .adm-nav { display: grid; gap: 4px; position: sticky; top: 20px; }
+  .adm-nav button { text-align: left; border: 0; background: none; padding: 11px 14px; border-radius: 12px; font-weight: 500; color: var(--slate-soft); display: flex; justify-content: space-between; }
+  .adm-nav button[aria-current="true"] { background: var(--white); color: var(--teal-ink); box-shadow: var(--sh-sm); font-weight: 600; }
+  .adm-nav .count { font-size: 12.5px; background: var(--mint); color: var(--teal-ink); padding: 1px 8px; border-radius: 99px; }
+  @media (max-width: 860px) {
+    .adm { grid-template-columns: 1fr; }
+    .adm-nav { position: static; display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+    .adm-nav button { white-space: nowrap; gap: 8px; }
+  }
+  .adm h1 { font-size: 30px; }
+  .adm-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .stat { background: var(--white); border-radius: var(--r-md); padding: 18px; border: 1px solid var(--line); }
+  .stat strong { display: block; font-size: 30px; color: var(--teal-ink); }
+  .stat span { font-size: 14px; color: var(--slate-soft); }
+  .table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); font-size: 15px; }
+  .table th, .table td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .table th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--slate-faint); background: var(--offwhite); }
+  .table tr:last-child td { border-bottom: 0; }
+  .table-wrap { overflow-x: auto; border-radius: var(--r-md); }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .pill { font-size: 12.5px; padding: 3px 10px; border-radius: 99px; background: var(--mint); color: var(--teal-ink); font-weight: 600; white-space: nowrap; }
+  .pill.draft { background: var(--sand); color: #6C5A3E; }
+  .lesson-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--white); border: 1px solid var(--line); border-radius: 14px; }
+  .lesson-item + .lesson-item { margin-top: 8px; }
+  .lesson-item .grow { flex: 1; min-width: 0; }
+  .lesson-item .sec { font-size: 12.5px; color: var(--slate-faint); }
+  .icon-btn { border: 1px solid var(--line); background: var(--white); border-radius: 10px; width: 34px; height: 34px; display: grid; place-items: center; }
+  .icon-btn:hover { background: var(--mint); }
+  dialog { border: 0; border-radius: var(--r-lg); padding: 0; width: min(860px, calc(100vw - 24px)); max-height: calc(100vh - 32px); box-shadow: var(--sh-lg); }
+  dialog::backdrop { background: rgba(42,80,78,.45); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--white); z-index: 1; }
+  .dlg-body { padding: 22px; }
+  .dlg-foot { display: flex; justify-content: space-between; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--white); flex-wrap: wrap; }
+  .md-tabs { display: flex; gap: 6px; margin-bottom: 6px; }
+  .md-preview { border: 1.5px dashed var(--line); border-radius: var(--r-sm); padding: 14px; min-height: 120px; background: var(--offwhite); }
+  .status-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .integration { display: flex; gap: 12px; align-items: center; padding: 14px 16px; background: var(--white); border: 1px solid var(--line); border-radius: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #D9A441; flex: none; }
+  .dot.on { background: var(--sage-deep); }
+</style>
+</head>
+<body>
+<header class="adm-top"><div class="wrap nav">
+  <a class="brand" href="/admin/"><img src="/assets/myo-family-health-logo.png" alt="Myo Family Health"></a>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="small" style="opacity:.75">Owner dashboard</span>
+    <a class="btn btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)" href="/" target="_blank">View site ↗</a>
+    <button class="btn btn-sm" style="color:#fff;background:transparent;border-color:rgba(255,255,255,.3)" id="signout" hidden>Sign out</button>
+  </div>
+</div></header>
+<main id="main" class="wrap">
+  <div id="app"><div class="section"><div class="skeleton"></div></div></div>
+</main>
+<dialog id="dlg"></dialog>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/assets/myo-tree.png">
+<meta name="theme-color" content="#457F7C">
+<meta property="og:site_name" content="Myo Family Health">
+<meta property="og:image" content="/assets/mfh-social.jpg">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/common.js" defer></script>
+<title>All Courses — Myo Family Health</title>
+<meta name="description" content="Browse Myo Family Health courses on breathing, tongue posture, sleep and airway, for kids, families and professionals.">
+<script src="/js/courses.js" defer></script>
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <header class="page-head">
+    <div class="wrap">
+      <span class="eyebrow">Course catalog</span>
+      <h1 style="margin-top:12px">Find the right course</h1>
+      <p>Filter by topic, who it's for, or price. Every course works on phone, tablet or computer.</p>
+    </div>
+  </header>
+
+  <section class="wrap" style="padding-block:28px 0">
+    <div class="filters" role="group" aria-label="Topic" id="cat-filters"></div>
+    <div class="filters" style="margin-top:-12px">
+      <div class="filter-row" role="group" aria-label="Who it's for" id="aud-filters"></div>
+      <div class="filter-row" role="group" aria-label="Price" id="price-filters"></div>
+      <label class="search"><span class="sr-only">Search courses</span>
+        <input class="input" type="search" id="q" placeholder="Search courses…"></label>
+    </div>
+    <p class="small muted" id="count" aria-live="polite"></p>
+    <div class="grid" id="results" style="margin-top:14px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+  </section>
+</main>
+<div id="site-footer"></div>
+</body>
+</html>

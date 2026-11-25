@@ -1,0 +1,34 @@
+# Myo Family Health — courses, shop & newsletter
+#
+# First-time setup (see README for the full walkthrough):
+#   npm install
+#   npx wrangler login
+#   npx wrangler d1 create myo-courses          # paste the id into database_id below
+#   npx wrangler d1 execute myo-courses --remote --file=schema.sql
+#   npx wrangler secret put ADMIN_PASSWORD      # the owners' dashboard password
+#   npx wrangler secret put SESSION_SECRET      # any long random string
+#   npx wrangler deploy
+#
+# No secrets go in this file — it is public.
+
+name = "myo-courses"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/auth/*", "/admin"]
+not_found_handling = "404-page"
+
+[vars]
+# Set to your custom domain once you have one, e.g. "https://learn.myofamilyhealth.com"
+SITE_URL = ""
+# Leave empty until the payment and email systems are connected.
+PAYMENTS_ENABLED = ""
+EMAIL_PROVIDER = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "myo-courses"
+database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
